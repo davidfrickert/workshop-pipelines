@@ -10,47 +10,20 @@ Docker is the only pre-requisite. This workshop works with Docker native in any 
 
 ### Launching Jenkins and SonarQube
 
-Both Jenkins and SonarQube servers are required for running the pipelines and code inspection. Although there are many ways to have Jenkins and SonarQube up and running, this is probably the easiest, fastest one -- running them as Docker containers:
+Both Jenkins and SonarQube servers are required for running the pipelines and code inspection. Although there are many ways to have Jenkins and SonarQube up and running, this is probably the easiest, fastest one -- running them as Docker containers.
 
-    docker network create ci
+This repository contains a `docker-compose.yml` file with a ready to use configuration for the necessary services.
 
-    docker run --name ci-jenkins \
-        --user root \
-        --detach \
-        --network ci \
-        --publish 9080:8080 --publish 50000:50000 \
-        --mount type=volume,source=ci-jenkins-home,target=/var/jenkins_home \
-        --mount type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock \
-        --mount type=bind,source=/usr/local/bin/docker,target=/usr/local/bin/docker \
-        --env JAVA_OPTS="-Xmx2048M" \
-        --env JENKINS_OPTS="--prefix=/jenkins" \
-        jenkins/jenkins:2.350
+If you are using WSL or Linux, it might be necessary to add the following line to `/etc/sysctl.conf`:
 
-    docker run --name ci-sonarqube-data \
-        --detach \
-        --network ci \
-        --mount type=volume,source=ci-postgresql-home,target=/var/lib/postgresql \
-        --mount type=volume,source=ci-sonarqube-data,target=/var/lib/postgresql/data \
-        --env POSTGRES_USER="sonar" \
-        --env POSTGRES_PASSWORD="sonarsonar" \
-        postgres:13.7
+    vm.max_map_count = 262144
 
-    sleep 10
+Sonarqube will not start without this setting!
+After doing the modification, you can run `sysctl -a` to apply the changes and then deploy the services:
 
-    docker run --name ci-sonarqube \
-        --detach \
-        --network ci \
-        --publish 9000:9000 \
-        --mount type=volume,source=ci-sonarqube-extensions,target=/opt/sonarqube/extensions \
-        --mount type=volume,source=ci-sonarqube-esdata,target=/opt/sonarqube/data \
-        --env SONARQUBE_JDBC_URL="jdbc:postgresql://ci-sonarqube-data:5432/sonar?charSet=UNICODE" \
-        --env SONARQUBE_JDBC_USERNAME="sonar" \
-        --env SONARQUBE_JDBC_PASSWORD="sonarsonar" \
-        sonarqube:9.4-community -Dsonar.web.context=/sonarqube
+    docker-compose up -d
 
-Note that the preceding commands will set up persistent volumes so all configuration, plugins and data persists across server restarts.
-
-Depending on the underlying OS, Docker daemon might be in a different folder. In those cases, use the right path e.g. `/usr/bin/docker` (the `where` command might be of help).
+Note that the preceding command will set up persistent volumes so all configuration, plugins and data persists across server restarts.
 
 ### Jenkins configuration
 
