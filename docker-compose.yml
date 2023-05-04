@@ -1,0 +1,57 @@
+version: '3.9'
+
+networks:
+  default:
+    name: ci
+    # the following section might not be necessary depending on the network subnet
+    # the default docker subnet is 172.17.0.0/16 
+    # this sometimes conflicts with corporate networks
+    # so a non-default subnet is used here
+    ipam:
+      config: 
+        - subnet: 172.26.0.1/16
+
+services:
+    jenkins:
+        container_name: ci-jenkins
+        user: root
+        ports:
+            - '8081:8080'
+            - '50000:50000'
+        environment:
+            - JAVA_OPTS=-Xmx2048M -Djavax.net.ssl.trustStore=/var/jenkins_home/keystore/cacerts
+            - JENKINS_OPTS=--prefix=/jenkins
+        volumes:
+          - ./ci-jenkins-home:/var/jenkins_home
+          - type: bind
+            source: /var/run/docker.sock
+            target: /var/run/docker.sock
+        build: 
+          context: .
+          dockerfile: Dockerfile-Jenkins
+        restart: unless-stopped
+    postgres:
+        container_name: ci-sonarqube-data
+        environment:
+            - POSTGRES_USER=sonar
+            - POSTGRES_PASSWORD=sonarsonar
+        volumes:
+            - ./ci-postgresql-home:/var/lib/postgresql
+            - ./ci-sonarqube-data:/var/lib/postgresql/data
+        image: 'postgres:15.2'
+        restart: unless-stopped
+    sonarqube:
+        container_name: ci-sonarqube
+        ports:
+            - '9000:9000'
+        environment:
+            - 'SONARQUBE_JDBC_URL=jdbc:postgresql://ci-sonarqube-data:5432/sonar?charSet=UNICODE'
+            - SONARQUBE_JDBC_USERNAME=sonar
+            - SONARQUBE_JDBC_PASSWORD=sonarsonar
+        volumes:
+            - ./ci-sonarqube-extensions:/opt/sonarqube/extensions
+            - ./ci-sonarqube-data:/opt/sonarqube/data
+        image: 'sonarqube:10-community'
+        command: -Dsonar.web.context=/sonarqube
+        restart: unless-stopped
+
